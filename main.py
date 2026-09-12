@@ -175,19 +175,34 @@ def reconcile_payment(payload: dict, x_api_key: Optional[str] = Header(None)):
 
 
 @app.post("/merchant/approval")
-def merchant_approval(payload: dict, x_api_key: Optional[str] = Header(None)):
-    check_key(x_api_key)
+def merchant_approval(payload: dict, authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    api_key = authorization.replace("Bearer ", "", 1).strip()
+
+    if api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    approval_status = payload.get("status", "pending").strip().lower()
+
+    if approval_status not in {"pending", "approved", "rejected"}:
+        approval_status = "pending"
 
     approval = {
         "approval_id": f"APR-{len(approvals) + 1}",
-        "status": payload.get("status", "PENDING"),
+        "merchant_approval_status": approval_status,
         "action": payload.get("action"),
-        "reason": payload.get("reason")
+        "reason": payload.get("reason"),
+        "request_id": payload.get("request_id"),
+        "merchant_id": payload.get("merchant_id"),
+        "match_details": payload.get("match_details"),
+        "confidence_scores": payload.get("confidence_scores")
     }
 
     approvals.append(approval)
-    return approval
 
+    return approval
 
 @app.post("/messages/send")
 def send_message(payload: dict, x_api_key: Optional[str] = Header(None)):
